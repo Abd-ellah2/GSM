@@ -1,0 +1,146 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Hotel {
+  id           String       @id
+  name         String
+  nameAr       String
+  stars        Int          @default(5)
+  location     String
+  code         String
+  totalRooms   Int
+  accentColor  String       @default("#0ea5e9")
+  floors       Int          @default(5)
+  roomsPerFloor Int         @default(12)
+  image        String?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  rooms        Room[]
+  departments  Department[]
+  requests     Request[]
+  staff        StaffUser[]
+  sessions     GuestSession[]
+}
+
+model Room {
+  id                String        @id @default(cuid())
+  number            String
+  floor             Int
+  type              String        @default("Standard Deluxe")
+  hotelId           String
+  status            String        @default("clean") // clean, dirty, maintenance
+  currentGuestName  String?
+  hotel             Hotel         @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  @@unique([hotelId, number])
+}
+
+model Department {
+  id         String       @id
+  name       String
+  nameAr     String
+  code       String
+  color      String       @default("text-sky-400")
+  slaMinutes Int          @default(15)
+  hotelId    String
+  hotel      Hotel        @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+
+  services   Service[]
+  staff      StaffUser[]
+  requests   Request[]
+}
+
+model Service {
+  id           String      @id
+  name         String
+  nameAr       String
+  category     String
+  price        Float       @default(0.0)
+  isPaid       Boolean     @default(false)
+  icon         String      @default("Sparkles")
+  departmentId String
+  department   Department  @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+}
+
+model StaffUser {
+  id           String      @id
+  email        String      @unique
+  name         String
+  role         String      @default("staff") // super_admin, hotel_admin, supervisor, staff
+  avatar       String      @default("ST")
+  hotelId      String?
+  departmentId String?
+  isActive     Boolean     @default(true)
+  createdAt    DateTime    @default(now())
+
+  hotel        Hotel?      @relation(fields: [hotelId], references: [id])
+  department   Department? @relation(fields: [departmentId], references: [id])
+  assignedRequests Request[]
+}
+
+model GuestSession {
+  id                String    @id @default(cuid())
+  guestSessionToken String    @unique // UUID stored in guest cookie/localStorage
+  hotelId           String
+  roomNumber        String
+  guestName         String    @default("Guest")
+  language          String    @default("en")
+  ipAddress         String?
+  createdAt         DateTime  @default(now())
+  expiresAt         DateTime
+
+  hotel             Hotel     @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  requests          Request[]
+}
+
+model Request {
+  id                String        @id // REQ-1001
+  hotelId           String
+  roomNumber        String
+  guestSessionId    String?
+  guestName         String        @default("Guest")
+  serviceName       String
+  serviceNameAr     String?
+  departmentId      String
+  priority          String        @default("normal") // normal, high, urgent
+  status            String        @default("new") // new, accepted, in_progress, completed, rated, cancelled
+  price             Float         @default(0.0)
+  notes             String?
+  assignedStaffId   String?
+  assignedStaffName String?
+  resolutionNote    String?
+  rating            Int?
+  feedback          String?
+
+  createdAt         DateTime      @default(now())
+  acceptedAt        DateTime?
+  startedAt         DateTime?
+  completedAt       DateTime?
+
+  hotel             Hotel         @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  department        Department    @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  guestSession      GuestSession? @relation(fields: [guestSessionId], references: [id])
+  assignedStaff     StaffUser?    @relation(fields: [assignedStaffId], references: [id])
+
+  messages          ChatMessage[]
+}
+
+model ChatMessage {
+  id         String   @id @default(cuid())
+  requestId  String
+  sender     String   // 'guest' | 'staff' | 'system'
+  senderName String
+  text       String
+  createdAt  DateTime @default(now())
+
+  request    Request  @relation(fields: [requestId], references: [id], onDelete: Cascade)
+}
